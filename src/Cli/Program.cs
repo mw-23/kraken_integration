@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Core;
@@ -9,7 +10,7 @@ using Websocket;
 
 namespace cli
 {
-    using OrderbookSide = SortedDictionary<decimal, decimal>;
+    using OrderbookSide = SortedDictionary<ExactFloat, ExactFloat>;
 
     // example implementation
     public class PrintingTracker : TrackerBase
@@ -21,14 +22,21 @@ namespace cli
                                                                         $"actual: {mismatch.ActualChecksum}");
         }
 
+        private static string ExactFloatToString(ExactFloat f)
+        {
+            return (f.Integer * Math.Pow(10, -1 * f.NegativeExponent)).ToString(CultureInfo.InvariantCulture);
+        }
+
         protected override void OnBookAvailable(string timestamp, in OrderbookSide askSide, in OrderbookSide bidSide)
         {
             var exitTimestamp = new DateTimeOffset(DateTime.UtcNow).ToUnixTimeMilliseconds() / 1000.0;
-
+            var (askKey, askValue) = askSide.ElementAt(0);
+            var (bidKey, bidValue) = bidSide.ElementAt(bidSide.Count - 1);
             Console.WriteLine($"pair: {Name} " +
                               $"latency: {exitTimestamp - double.Parse(timestamp):F6}, " +
-                              $"best ask: {askSide.ElementAt(0)}, " +
-                              $"best bid: {bidSide.ElementAt(bidSide.Count - 1)}");
+                              $"best ask: price: {ExactFloatToString(askKey)} " +
+                              $"amount: {ExactFloatToString(askValue)}, " +
+                              $"best bid: price: {ExactFloatToString(bidKey)} amount: {ExactFloatToString(bidValue)}");
         }
     }
 

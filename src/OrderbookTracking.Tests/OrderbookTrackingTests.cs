@@ -11,44 +11,50 @@ using OrderbookTracking.GlobalTrackerImplementations;
 
 namespace OrderbookTracking.Tests
 {
-    using OrderbookSide = SortedDictionary<decimal, decimal>;
+    using OrderbookSide = SortedDictionary<ExactFloat, ExactFloat>;
 
-    // public class decimalTests
-    // {
-    //     [Theory]
-    //     [InlineData("123.0", "123.0", 0)]
-    //     [InlineData("0123.0", "123.0", 0)]
-    //     [InlineData("000123.0", "123.0", 0)]
-    //     [InlineData("123.00", "123.0", 0)]
-    //     [InlineData("123.1", "123.0", 1)]
-    //     [InlineData("123.10", "123.00", 1)]
-    //     [InlineData("123.10", "123.001", 1)]
-    //     [InlineData("0123.10", "0123.01", 1)]
-    //     [InlineData("321.0", "123.0", 1)]
-    //     [InlineData("321.1", "123.0", 1)]
-    //     [InlineData("321.0", "123.1", 1)]
-    //     [InlineData("0321.0", "123.0", 1)]
-    //     [InlineData("0321.0", "123.1", 1)]
-    //     [InlineData("0321.00", "123.10", 1)]
-    //     [InlineData("0321.00", "123.001", 1)]
-    //     [InlineData("123.00", "123.10", -1)]
-    //     [InlineData("123.001", "123.10", -1)]
-    //     [InlineData("0123.01", "0123.10", -1)]
-    //     [InlineData("123.0", "321.0", -1)]
-    //     [InlineData("123.0", "321.1", -1)]
-    //     [InlineData("123.1", "321.0", -1)]
-    //     [InlineData("123.0", "0321.0", -1)]
-    //     [InlineData("123.1", "0321.0", -1)]
-    //     [InlineData("123.10", "0321.00", -1)]
-    //     [InlineData("123.001", "0321.00", -1)]
-    //     public void Compare(string x, string y, int comp)
-    //     {
-    //         var fx = decimal.Parse(x);
-    //         var fy = decimal.Parse(y);
-    //         var comparer = decimal.ParseComparer();
-    //         Assert.Equal(comparer.Compare(fx, fy), comp);
-    //     }
-    // }
+    public class ExactFloatTests
+    {
+        [Theory]
+        [InlineData("123.0", "123.0", 0)]
+        [InlineData("0123.0", "123.0", 0)]
+        [InlineData("000123.0", "123.0", 0)]
+        [InlineData("123.00", "123.0", 0)]
+        [InlineData("1230.00", "1230.0", 0)]
+        [InlineData("123.1", "123.0", 1)]
+        [InlineData("123.10", "123.00", 1)]
+        [InlineData("123.10", "123.001", 1)]
+        [InlineData("0123.10", "0123.01", 1)]
+        [InlineData("321.0", "123.0", 1)]
+        [InlineData("321.1", "123.0", 1)]
+        [InlineData("321.0", "123.1", 1)]
+        [InlineData("0321.0", "123.0", 1)]
+        [InlineData("0321.0", "123.1", 1)]
+        [InlineData("0321.00", "123.10", 1)]
+        [InlineData("0321.00", "123.001", 1)]
+        [InlineData("12300.0", "1230.0", 1)]
+        [InlineData("12300.00", "1230.0", 1)]
+        [InlineData("123.00", "123.10", -1)]
+        [InlineData("123.001", "123.10", -1)]
+        [InlineData("0123.01", "0123.10", -1)]
+        [InlineData("123.0", "321.0", -1)]
+        [InlineData("123.0", "321.1", -1)]
+        [InlineData("123.1", "321.0", -1)]
+        [InlineData("123.0", "0321.0", -1)]
+        [InlineData("123.1", "0321.0", -1)]
+        [InlineData("123.10", "0321.00", -1)]
+        [InlineData("123.001", "0321.00", -1)]
+        [InlineData("123.000", "1230.0", -1)]
+        [InlineData("1230.00", "12300.0", -1)]
+        [InlineData("1230.000", "12300.00", -1)]
+        public void Compare(string x, string y, int comp)
+        {
+            var fx = new ExactFloat(x);
+            var fy = new ExactFloat(y);
+            var comparer = new ExactFloatComparer();
+            Assert.Equal(comparer.Compare(fx, fy), comp);
+        }
+    }
 
     public class TestTracker : TrackerBase
     {
@@ -225,29 +231,29 @@ namespace OrderbookTracking.Tests
             Assert.Single(tracker.Timstamps);
             Assert.Empty(tracker.MisMatches);
 
-            var expectedAsks = new OrderbookSide();
-            var expectedBids = new OrderbookSide();
+            var expectedAsks = new OrderbookSide(new ExactFloatComparer());
+            var expectedBids = new OrderbookSide(new ExactFloatComparer());
 
             foreach (LevelTuple tup in snapshot.Asks.Tuples)
             {
-                expectedAsks.Add(decimal.Parse(tup.PriceLevel), decimal.Parse(tup.Volume));
+                expectedAsks.Add(new ExactFloat(tup.PriceLevel), new ExactFloat(tup.Volume));
             }
 
             foreach (LevelTuple tup in snapshot.Bids.Tuples)
             {
-                expectedBids.Add(decimal.Parse(tup.PriceLevel), decimal.Parse(tup.Volume));
+                expectedBids.Add(new ExactFloat(tup.PriceLevel), new ExactFloat(tup.Volume));
             }
 
 
             Assert.Equal(expectedAsks.Count, tracker.AskSides[0].Count);
             Assert.Equal(expectedBids.Count, tracker.BidSides[0].Count);
 
-            foreach (KeyValuePair<decimal, decimal> pair in expectedAsks)
+            foreach (KeyValuePair<ExactFloat, ExactFloat> pair in expectedAsks)
             {
                 Assert.Equal(tracker.AskSides[0][pair.Key], pair.Value);
             }
 
-            foreach (KeyValuePair<decimal, decimal> pair in expectedBids)
+            foreach (KeyValuePair<ExactFloat, ExactFloat> pair in expectedBids)
             {
                 Assert.Equal(tracker.BidSides[0][pair.Key], pair.Value);
             }
@@ -291,8 +297,8 @@ namespace OrderbookTracking.Tests
             Assert.Equal(2, tracker.Timstamps.Count);
             Assert.Equal("1700000001.000000", tracker.Timstamps[1]);
             var updatedAsks = tracker.AskSides[1];
-            Assert.Equal(decimal.Parse("2.0"), updatedAsks[decimal.Parse("61100.40000")]);
-            Assert.Equal(decimal.Parse("1.0"), updatedAsks[decimal.Parse("61102.50000")]);
+            Assert.Equal(new ExactFloat("2.0"), updatedAsks[new ExactFloat("61100.40000")]);
+            Assert.Equal(new ExactFloat("1.0"), updatedAsks[new ExactFloat("61102.50000")]);
         }
 
         [Fact]
@@ -309,8 +315,8 @@ namespace OrderbookTracking.Tests
             Assert.Equal(2, tracker.Timstamps.Count);
             Assert.Equal("1700000001.000000", tracker.Timstamps[1]);
             var updated = tracker.BidSides[1];
-            Assert.Equal(decimal.Parse("2.0"), updated[decimal.Parse("61033.00000")]);
-            Assert.Equal(decimal.Parse("1.0"), updated[decimal.Parse("61028.70000")]);
+            Assert.Equal(new ExactFloat("2.0"), updated[new ExactFloat("61033.00000")]);
+            Assert.Equal(new ExactFloat("1.0"), updated[new ExactFloat("61028.70000")]);
         }
 
         [Fact]
@@ -341,11 +347,11 @@ namespace OrderbookTracking.Tests
             Assert.Equal(2, tracker.Timstamps.Count);
             Assert.Equal("1700000001.000000", tracker.Timstamps[1]);
             var updatedAsks = tracker.AskSides[1];
-            Assert.Equal(decimal.Parse("2.0"), updatedAsks[decimal.Parse("61100.40000")]);
-            Assert.Equal(decimal.Parse("1.0"), updatedAsks[decimal.Parse("61102.50000")]);
+            Assert.Equal(new ExactFloat("2.0"), updatedAsks[new ExactFloat("61100.40000")]);
+            Assert.Equal(new ExactFloat("1.0"), updatedAsks[new ExactFloat("61102.50000")]);
             var updatedBids = tracker.BidSides[1];
-            Assert.Equal(decimal.Parse("2.0"), updatedBids[decimal.Parse("61033.00000")]);
-            Assert.Equal(decimal.Parse("1.0"), updatedBids[decimal.Parse("61028.70000")]);
+            Assert.Equal(new ExactFloat("2.0"), updatedBids[new ExactFloat("61033.00000")]);
+            Assert.Equal(new ExactFloat("1.0"), updatedBids[new ExactFloat("61028.70000")]);
         }
 
         [Fact]
@@ -364,8 +370,8 @@ namespace OrderbookTracking.Tests
             Assert.Equal(depth, tracker.AskSides[1].Count);
             Assert.Equal("1700000001.000000", tracker.Timstamps[1]);
             var updatedAsks = tracker.AskSides[1];
-            Assert.Equal(decimal.Parse("2.0"), updatedAsks[decimal.Parse("61066.70000")]);
-            Assert.Equal(decimal.Parse("1.0"), updatedAsks[decimal.Parse("61065.70000")]);
+            Assert.Equal(new ExactFloat("2.0"), updatedAsks[new ExactFloat("61066.70000")]);
+            Assert.Equal(new ExactFloat("1.0"), updatedAsks[new ExactFloat("61065.70000")]);
         }
 
         [Fact]
@@ -384,8 +390,8 @@ namespace OrderbookTracking.Tests
             Assert.Equal(depth, tracker.BidSides[1].Count);
             Assert.Equal("1700000001.000000", tracker.Timstamps[1]);
             var updatedAsks = tracker.BidSides[1];
-            Assert.Equal(decimal.Parse("2.0"), updatedAsks[decimal.Parse("61066.70000")]);
-            Assert.Equal(decimal.Parse("1.0"), updatedAsks[decimal.Parse("61065.70000")]);
+            Assert.Equal(new ExactFloat("2.0"), updatedAsks[new ExactFloat("61066.70000")]);
+            Assert.Equal(new ExactFloat("1.0"), updatedAsks[new ExactFloat("61065.70000")]);
         }
 
         [Fact]
@@ -402,7 +408,7 @@ namespace OrderbookTracking.Tests
             Assert.Equal(2, tracker.Timstamps.Count);
             Assert.Equal("1700000000.000000", tracker.Timstamps[1]);
             var updatedAsks = tracker.AskSides[1];
-            Assert.False(updatedAsks.ContainsKey(decimal.Parse("61102.50000")));
+            Assert.False(updatedAsks.ContainsKey(new ExactFloat("61102.50000")));
         }
 
         [Fact]
@@ -419,8 +425,8 @@ namespace OrderbookTracking.Tests
             Assert.Equal(2, tracker.Timstamps.Count);
             Assert.Equal("1700000000.000000", tracker.Timstamps[1]);
             var updatedAsks = tracker.AskSides[1];
-            Assert.Equal(decimal.Parse("2.0"), updatedAsks[decimal.Parse("61100.40000")]);
-            Assert.Equal(decimal.Parse("1.0"), updatedAsks[decimal.Parse("61102.50000")]);
+            Assert.Equal(new ExactFloat("2.0"), updatedAsks[new ExactFloat("61100.40000")]);
+            Assert.Equal(new ExactFloat("1.0"), updatedAsks[new ExactFloat("61102.50000")]);
         }
     }
 
@@ -545,8 +551,8 @@ namespace OrderbookTracking.Tests
                 Assert.Equal(2, cTracker.Timstamps.Count);
                 Assert.Equal("1700000001.000000", cTracker.Timstamps[1]);
                 var updatedAsks = cTracker.AskSides[1];
-                Assert.Equal(decimal.Parse("2.0"), updatedAsks[decimal.Parse("61100.40000")]);
-                Assert.Equal(decimal.Parse("1.0"), updatedAsks[decimal.Parse("61102.50000")]);
+                Assert.Equal(new ExactFloat("2.0"), updatedAsks[new ExactFloat("61100.40000")]);
+                Assert.Equal(new ExactFloat("1.0"), updatedAsks[new ExactFloat("61102.50000")]);
             }
             Assert.Empty(snapshotRequests);
         }

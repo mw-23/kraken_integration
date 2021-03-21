@@ -10,60 +10,64 @@ using Force.Crc32;
 
 namespace OrderbookTracking
 {
-    using OrderbookSide = SortedDictionary<decimal, decimal>;
+    using OrderbookSide = SortedDictionary<ExactFloat, ExactFloat>;
 
     // Representation of strings like "00123.0032100"
-    // public readonly struct decimal
-    // {
-    //     public readonly int BeforeDecimal;
-    //     public readonly int AfterDecimal;
-    //     public readonly int Exponent;
-    //
-    //     public decimal(string value)
-    //     {
-    //         var sp = value.Split(".");
-    //         if (sp.Length != 2) throw new Exception($"invalid arg {value}");
-    //         var decs = sp[1];
-    //         // calculate 10-based negative exponent
-    //         var count = 0;
-    //         foreach (var c in decs)
-    //             if (c == '0') count++;
-    //             else break;
-    //         Exponent = count;
-    //         decs = decs.TrimEnd('0');
-    //         AfterDecimal = int.Parse(decs != "" ? decs : "0"); // final int value
-    //         BeforeDecimal = int.Parse(sp[0]);
-    //     }
-    //
-    //     // convert back to string
-    //     public override string ToString()
-    //     {
-    //         return (BeforeDecimal + "." + new string('0', Exponent) + AfterDecimal);
-    //     }
-    // }
-    //
-    // public class decimalComparer : Comparer<decimal>
-    // {
-    //     // Efficiently compares e.g. "00123.12300"  with "12300.00123"
-    //     // without converting to float (i.e. without any risk of losing precision).
-    //     public override int Compare(decimal x, decimal y)
-    //     {
-    //         // if (x == null) throw new ArgumentNullException(nameof(x));
-    //         // if (y == null) throw new ArgumentNullException(nameof(y));
-    //
-    //         // compares before decimal point first,
-    //         // then compare (-1 times) number of leading zeroes after decimal point,
-    //         // finally, compare value after decimal point
-    //         var comp1 = x.BeforeDecimal.CompareTo(y.BeforeDecimal);
-    //         if (comp1 != 0) return comp1;
-    //         var xZeroDecs = x.AfterDecimal == 0;
-    //         if (xZeroDecs) return x.AfterDecimal.CompareTo(y.AfterDecimal);
-    //         var yZeroDecs = x.AfterDecimal == 0;
-    //         if (yZeroDecs) return 1;
-    //         var compExponents = y.Exponent.CompareTo(x.Exponent); // note x/y swap: more zeroes == smaller
-    //         return compExponents != 0 ? compExponents : x.AfterDecimal.CompareTo(y.AfterDecimal);
-    //     }
-    // }
+    public readonly struct ExactFloat
+    {
+        // Exact integer power
+        public static int IntPow(int x, int pow)
+        {
+            int ret = 1;
+            while (pow != 0)
+            {
+                if ((pow & 1) == 1)
+                    ret *= x;
+                x *= x;
+                pow >>= 1;
+            }
+
+            return ret;
+        }
+
+        public readonly long Integer;
+        public readonly int NegativeExponent; // st
+
+        public ExactFloat(string value)
+        {
+            var pos = value.IndexOf('.');
+            if (pos == 0)
+            {
+                NegativeExponent = 0;
+            }
+            NegativeExponent = pos == 0 ? 0 : value.Length - pos; // count number of chars after decimal point
+            Integer = long.Parse(value.Replace(".", "")); // as raw int
+        }
+    }
+
+    public class ExactFloatComparer : Comparer<ExactFloat>
+    {
+        // Efficiently compares e.g. "00123.12300"  with "12300.00123"
+        // without converting to float (i.e. without any risk of losing precision).
+        public override int Compare(ExactFloat x, ExactFloat y)
+        {
+            // x = 123.000, y = 1230.000
+            var compExponents = y.NegativeExponent.CompareTo(x.NegativeExponent); // note x/y swap
+            switch (compExponents)
+            {
+                case 1:
+                    var xAdjInt = x.Integer * ExactFloat.IntPow(10, y.NegativeExponent - x.NegativeExponent);
+                    return xAdjInt.CompareTo(y.Integer);
+                case -1:
+                    var yAdjInt = y.Integer *  ExactFloat.IntPow(10, x.NegativeExponent - y.NegativeExponent);
+                    return x.Integer.CompareTo(yAdjInt);
+                case 0:
+                    return x.Integer.CompareTo(y.Integer);
+                default:
+                    throw new Exception($"expected valid comparison, got {compExponents}");
+            }
+        }
+    }
 
     // Define a class to hold checksum mismatch info
     public class ChecksumMismatch : EventArgs
@@ -84,7 +88,7 @@ namespace OrderbookTracking
     // implementers to decide what to do with the resulting orderoboks
     public abstract class TrackerBase
     {
-        private static OrderbookSide _newOrderbookSide() => new();
+        private static OrderbookSide _newOrderbookSide() => new(new ExactFloatComparer());
 
         private bool _initialized;
         private OrderbookSide _askSide;
@@ -112,7 +116,7 @@ namespace OrderbookTracking
         {
             foreach (var tuple in levels.Tuples)
             {
-                side.Add(decimal.Parse(tuple.PriceLevel), decimal.Parse(tuple.Volume));
+                side.Add(new ExactFloat(tuple.PriceLevel), new ExactFloat(tuple.Volume));
             }
         }
 
@@ -145,8 +149,8 @@ namespace OrderbookTracking
             foreach (var tuple in levels.Tuples)
             {
                 if (tuple.Volume != "0.00000000")
-                    side[decimal.Parse(tuple.PriceLevel)] = decimal.Parse(tuple.Volume);
-                else side.Remove(decimal.Parse(tuple.PriceLevel));
+                    side[new ExactFloat(tuple.PriceLevel)] = new ExactFloat(tuple.Volume);
+                else side.Remove(new ExactFloat(tuple.PriceLevel));
             }
         }
 
@@ -177,9 +181,9 @@ namespace OrderbookTracking
         }
 
         // tiny helper
-        private static string DecimalToChecksumString(decimal x)
+        private static string ExactFloatToChecksumString(ExactFloat x)
         {
-            return x.ToString(CultureInfo.InvariantCulture).Replace(".", string.Empty).TrimStart('0');
+            return x.Integer.ToString();
         }
 
         // looping an orderbook side, allows reuse for both bid and ask, despite being slightly different 
@@ -187,7 +191,7 @@ namespace OrderbookTracking
         {
             var values = useHighest ? side.TakeLast(10).Reverse() : side.Take(10);
             return values.SelectMany(x =>
-                new[] {DecimalToChecksumString(x.Key), DecimalToChecksumString(x.Value)});
+                new[] {ExactFloatToChecksumString(x.Key), ExactFloatToChecksumString(x.Value)});
         }
 
         // calculates the checksum of an orderbook, according to documentation, to ensure no messages have been dropped

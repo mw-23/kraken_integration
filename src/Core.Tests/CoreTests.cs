@@ -1,37 +1,35 @@
 using System;
 using System.Collections.Generic;
-using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using JsonParsing;
-using Prime.Services;
 using Xunit;
 
 namespace Core.Tests
 {
     public class ConnectionTests
     {
-        public class globalTestTracker : IGlobalTracker
+        public class GlobalTestTracker : IGlobalTracker
         {
-            public readonly List<Book> newSnapshots = new();
-            public readonly List<Book> newUpdates = new();
-            public readonly List<string> newUnsubscribes = new();
+            public readonly List<Book> NewSnapshots = new();
+            public readonly List<Book> NewUpdates = new();
+            public readonly List<string> NewUnsubscribes = new();
             public event EventHandler<string> RaiseSnapshotRequest;
 
             public void NewSnapshot(in Book book)
             {
-                newSnapshots.Add(book);
+                NewSnapshots.Add(book);
             }
 
             public void NewUpdate(in Book book)
             {
-                newUpdates.Add(book);
+                NewUpdates.Add(book);
             }
 
             public void NewUnsubscribe(string pair)
             {
-                newUnsubscribes.Add(pair);
+                NewUnsubscribes.Add(pair);
             }
         }
 
@@ -51,9 +49,9 @@ namespace Core.Tests
                 sendMsgs.Add(msg);
             }
 
-            public Task<bool> Stop()
+            public async Task<bool> Stop()
             {
-                throw new NotImplementedException();
+                return await Task.Run(() => true);
             }
 
             public IObservable<string> ReconnectionHappened => ReconnectionHappenedSubject;
@@ -67,7 +65,7 @@ namespace Core.Tests
         // incomplete tests
         public void Sending()
         {
-            var tracker = new globalTestTracker();
+            var tracker = new GlobalTestTracker();
 
             var socket = new TestWebocket();
             var conn = new KrakenConnection(tracker, (_, _) => socket);
@@ -78,8 +76,7 @@ namespace Core.Tests
             var success = conn.Stop();
             success.Wait();
             Assert.True(success.Result);
-            Assert.Contains("a", socket.sendMsgs);
-            Assert.Contains("b", socket.sendMsgs);
+            Assert.Equal(2, socket.sendMsgs.Count);
         }        
         
         [Fact]
